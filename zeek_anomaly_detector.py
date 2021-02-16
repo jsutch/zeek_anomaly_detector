@@ -7,6 +7,9 @@
 # - Veronica Valeros. vero.valeros@gmail.com
 
 import pandas as pd
+# pandas config options
+pd.options.display.float_format = '{:.5f}'.format
+pd.options.display.max_columns = 50
 # from sklearn.model_selection import train_test_split
 # from pyod.models import lof
 # from pyod.models.abod import ABOD
@@ -42,8 +45,10 @@ def detect(file, amountanom, realtime, dumptocsv):
     """
 
     # Create a Pandas dataframe from the conn.log
-    bro_df = pd.read_csv(file, sep="\t", comment='#', names=['ts',  'uid', 'id.orig_h', 'id.orig_p', 'id.resp_h', 'id.resp_p', 'proto', 'service', 'duration',  'orig_bytes', 'resp_bytes', 'conn_state', 'local_orig', 'local_resp', 'missed_bytes',  'history', 'orig_pkts', 'orig_ip_bytes', 'resp_pkts', 'resp_ip_bytes', 'tunnel_parents'])
-
+	# orig import - this order is broken in Zeek 3.2
+    # bro_df = pd.read_csv(file, sep="\t", comment='#', names=['ts',  'uid', 'id.orig_h', 'id.orig_p', 'id.resp_h', 'id.resp_p', 'proto', 'service', 'duration',  'orig_bytes', 'resp_bytes', 'conn_state', 'local_orig', 'local_resp', 'missed_bytes',  'history', 'orig_pkts', 'orig_ip_bytes', 'resp_pkts', 'resp_ip_bytes', 'tunnel_parents'])
+	# this order works in Zeek 3.2
+    bro_df = pd.read_csv(file, sep="\t", comment='#', names=['ts', 'uid', 'id.orig_h', 'id.orig_p', 'id.resp_h', 'id.resp_p', 'proto', 'service', 'duration', 'orig_bytes', 'resp_bytes', 'conn_state', 'local_orig', 'local_resp', 'missed_bytes', 'history', 'orig_pkts', 'orig_ip_bytes', 'resp_pkts', 'resp_ip_bytes', 'tunnel_parents', 'vlan', 'inner_vlan', 'orig_l2_addr', 'resp_l2_addr'])
     # In case you need a label, due to some models being able to work in a
     # semisupervized mode, then put it here. For now everything is
     # 'normal', but we are not using this for detection
@@ -55,6 +60,8 @@ def detect(file, amountanom, realtime, dumptocsv):
     # is better than not using the lines.
     # Also fill the no values with 0
     # Finally put a type to each column
+	# 20210215 - there's an error with values that use a comma separator not being stripped correctly.
+
     bro_df['orig_bytes'].replace('-', '0', inplace=True)
     bro_df['orig_bytes'] = bro_df['orig_bytes'].fillna(0).astype('int32')
     bro_df['resp_bytes'].replace('-', '0', inplace=True)
@@ -163,7 +170,9 @@ def detect(file, amountanom, realtime, dumptocsv):
 
     # Only print some columns, not all, so its easier to read.
     df_to_print = df_to_print.drop(['conn_state', 'history', 'local_orig', 'local_resp', 'missed_bytes', 'ts', 'tunnel_parents', 'uid', 'label'], axis=1)
-    print(df_to_print)
+    sorted_print = df_to_print.sort_values('score',ascending=False)
+    #print(df_to_print)
+    print(sorted_print)
 
 
 if __name__ == '__main__':
@@ -178,6 +187,7 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--amountanom', help='Amount of anomalies to show.', required=False, default=10, type=int)
     parser.add_argument('-R', '--realtime', help='Read the conn.log in real time.', required=False, type=bool, default=False)
     parser.add_argument('-D', '--dumptocsv', help='Dump the conn.log DataFrame to a csv file', required=False)
+    parser.add_argument('-A', '--algorithm', help='Choose which Algorithm to run. PCA is default', choices=['PCA','ABOD', 'LOF', 'CBLOF', 'LOCI', 'LSCP', 'MCD', 'OCSVM', 'SOD', 'SO_GALL', 'SOS', 'XGBOD', 'KNN',],default='PCA', required=False)
     args = parser.parse_args()
 
     detect(args.file, args.amountanom, args.realtime, args.dumptocsv)
